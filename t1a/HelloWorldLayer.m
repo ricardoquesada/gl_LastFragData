@@ -15,6 +15,7 @@
 
 #pragma mark - HelloWorldLayer
 
+
 // HelloWorldLayer implementation
 @implementation HelloWorldLayer
 
@@ -41,8 +42,13 @@
 	// Apple recommends to re-assign "self" with the "super's" return value
 	if( (self=[super init]) ) {
 
+		[self registerShader];
+	
 		CGSize s = [[CCDirector sharedDirector] winSize];
 		
+		//
+		// Background images that are going to be affected by the grey layer
+		//
 		for( int i=0; i<200;i++) {
 			CCSprite *sp = [CCSprite spriteWithFile:@"Icon.png"];
 			CGPoint p = ccp( s.width * CCRANDOM_0_1(), s.height * CCRANDOM_0_1());
@@ -57,26 +63,50 @@
 			[self addChild:sp];
 		}
 		
-		CCLayerColor *layer = [CCLayerColor layerWithColor:ccc4(0, 0, 0, 255) width:300 height:300];
+		//
+		// Grey Layer
+		//
+		CCLayerColor *layer = [CCLayerColor layerWithColor:ccc4(0, 0, 0, 255)]; // the color is not important. Is ignored by the shader
 		[self addChild:layer];
-		layer.anchorPoint = ccp(0.5f, 0.5f);
 		layer.ignoreAnchorPointForPosition = NO;
 		layer.position = ccp(s.width/2, s.height/2);
+
+		// Shader that uses gl_LastFragData. Creates a fullscreen grey effect.
+		// Much faster than using Render-To-Texture techniques,
+		// and also much easier to use
+		layer.shaderProgram = [[CCShaderCache sharedShaderCache] programForKey:@"greyShader"];
+
+		id scale = [CCScaleBy actionWithDuration:3 scale:0.1];
+		id scale_back = [scale reverse];
+		id sequence = [CCSequence actions:scale, scale_back, nil];
+		[layer runAction:[CCRepeatForever actionWithAction:sequence]];
 		
-		CCGLProgram *program = [[CCGLProgram alloc] initWithVertexShaderFilename:@"shader_test.vsh"
-														  fragmentShaderFilename:@"shader_test.fsh"];
 		
-		[program addAttribute:kCCAttributeNamePosition index:kCCVertexAttrib_Position ];
-		[program addAttribute:kCCAttributeNameTexCoord index:kCCVertexAttrib_TexCoords ];
-		
-		[program link ];
-		[program updateUniforms ];
-		
-		layer.shaderProgram = program;
-		
-		[program autorelease];
+		//
+		// Foreground images that are NOT affected by the grey layer
+		//
+		CCSprite *sp = [CCSprite spriteWithFile:@"Icon.png"];
+		CGPoint p = ccp( s.width/2, s.height/2);
+		[sp setPosition:p];
+		[self addChild:sp];
 	}
 	return self;
+}
+
+-(void) registerShader
+{
+	CCGLProgram *program = [[CCGLProgram alloc] initWithVertexShaderFilename:@"shader_test.vsh"
+													  fragmentShaderFilename:@"shader_test.fsh"];
+	
+	[program addAttribute:kCCAttributeNamePosition index:kCCVertexAttrib_Position];
+	[program addAttribute:kCCAttributeNameTexCoord index:kCCVertexAttrib_TexCoords];
+	
+	[program link];
+	[program updateUniforms];
+	
+	[[CCShaderCache sharedShaderCache] addProgram:program forKey:@"greyShader"];
+
+	[program autorelease];
 }
 
 // on "dealloc" you need to release all your retained objects
